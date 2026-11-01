@@ -291,6 +291,7 @@ fn main() -> anyhow::Result<()> {
         "odon",
         native_options,
         Box::new(move |cc| {
+            log_startup_gpu_diagnostics(cc);
             Ok(match &launch {
                 Launch::Project { project_path } => {
                     let mut app = root_app::RootApp::new_project(cc, project_path.clone())?;
@@ -353,6 +354,56 @@ fn main() -> anyhow::Result<()> {
     .map_err(|e| anyhow::anyhow!("{e}"))?;
 
     Ok(())
+}
+
+/// Logs the windowing/OpenGL environment at startup.
+///
+/// Most "the UI is broken on Linux" reports are really a missing or software
+/// OpenGL context, which silently disables mosaic and most overlays. Logging
+/// the GL strings makes a software fallback (llvmpipe) obvious in one run.
+fn log_startup_gpu_diagnostics(cc: &eframe::CreationContext<'_>) {
+    crate::log_info!(
+        "startup: os={} arch={} opengl_context={}",
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        cc.gl.is_some()
+    );
+
+    for key in [
+        "WINIT_UNIX_BACKEND",
+        "XDG_SESSION_TYPE",
+        "WAYLAND_DISPLAY",
+        "DISPLAY",
+        "LIBGL_ALWAYS_SOFTWARE",
+    ] {
+        if let Ok(value) = std::env::var(key) {
+            crate::log_info!("startup: {key}={value}");
+        }
+    }
+
+    match cc.gl.as_ref() {
+        Some(gl) => {
+            use glow::HasContext as _;
+            // SAFETY: called on the eframe-created context during startup, so
+            // the context is current on this thread.
+            unsafe {
+                crate::log_info!(
+                    "startup: gl_vendor={:?} gl_renderer={:?} gl_version={:?} glsl_version={:?}",
+                    gl.get_parameter_string(glow::VENDOR),
+                    gl.get_parameter_string(glow::RENDERER),
+                    gl.get_parameter_string(glow::VERSION),
+                    gl.get_parameter_string(glow::SHADING_LANGUAGE_VERSION)
+                );
+            }
+        }
+        None => {
+            crate::log_warn!(
+                "startup: no OpenGL context; mosaic mode and most overlays will be unavailable. \
+                 See https://alexcoulton.github.io/odon/reference/linux-gpu-and-arm64/ \
+                 (docs/reference/linux-gpu-and-arm64.md)"
+            );
+        }
+    }
 }
 
 fn load_app_icon() -> Option<egui::IconData> {

@@ -162,6 +162,12 @@ If you want to build `odon` yourself instead of using the release binaries:
 cargo run
 ```
 
+On Linux, building needs `libgtk-3-dev` (or your distro's GTK3 development
+package). If the viewer starts but mosaic mode or overlays are unavailable, the
+cause is usually the OpenGL context rather than the UI itself; see
+[Linux, GPU, and ARM64](docs/reference/linux-gpu-and-arm64.md) for the startup
+diagnostics and ARM64 notes.
+
 Open a dataset directly:
 
 ```bash
